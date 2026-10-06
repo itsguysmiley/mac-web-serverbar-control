@@ -8,6 +8,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swiftc -O main.swift -o "$APP/Contents/MacOS/ServerBar"
 
+if [ -f MenuIcon.png ]; then
+  cp MenuIcon.png "$APP/Contents/Resources/MenuIcon.png"
+fi
+
 ICON_KEY=""
 if [ -f AppIcon.icns ]; then
   cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"

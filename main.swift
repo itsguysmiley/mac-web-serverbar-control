@@ -269,7 +269,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         if let b = statusItem.button {
-            if let img = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "ServerBar") {
+            if let path = Bundle.main.path(forResource: "MenuIcon", ofType: "png"),
+               let img = NSImage(contentsOfFile: path) {
+                img.size = NSSize(width: 18, height: 18)
+                img.isTemplate = false
+                b.image = img
+            } else if let img = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "ServerBar") {
                 img.isTemplate = true
                 b.image = img
             } else {
