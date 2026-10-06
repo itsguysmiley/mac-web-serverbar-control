@@ -47,8 +47,8 @@ Built and tested on an Intel MacBook Pro (2019) with a MacPorts install. Because
 ## Build
 
 ```bash
-git clone https://github.com/<you>/ServerBar.git
-cd ServerBar
+git clone https://github.com/itsguysmiley/mac-web-serverbar-control.git
+cd mac-web-serverbar-control
 # edit the Cfg block at the top of main.swift first (see Configuration)
 ./build.sh
 open ServerBar.app
