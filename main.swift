@@ -157,15 +157,36 @@ func terminateListeners(_ port: UInt16) {
     for pid in listenerPIDs(port) { kill(pid, SIGTERM) }
 }
 
+var phpErrorsOn: Bool { UserDefaults.standard.object(forKey: "showPHPErrors") as? Bool ?? true }
+let phpErrorLog = supportDir + "/php-errors.log"
+
+func fpmArgs() -> [String] {
+    var a = ["--nodaemonize", "--fpm-config", Cfg.fpmConf, "--pid", Nginx.fpmPid]
+    a += ["-d", "log_errors=On", "-d", "error_log=\(phpErrorLog)"]
+    a += phpErrorsOn ? ["-d", "display_errors=On", "-d", "error_reporting=E_ALL"]
+                     : ["-d", "display_errors=Off"]
+    return a
+}
+
 enum Nginx {
     static let fpmPid = supportDir + "/php-fpm.pid"
     static var running: Bool { isListening(Cfg.nginxPort) }
     static var fpmRunning: Bool { isListening(9000) }
     static var fpmChild: Process?
 
+    static func startFPM() {
+        guard !Cfg.fpmBin.isEmpty, !fpmRunning else { return }
+        let p = makeProcess(Cfg.fpmBin, fpmArgs(), log: supportDir + "/php-fpm.log")
+        do { try p.run(); fpmChild = p }
+        catch { showAlert("php-fpm failed to launch", "\(error)"); return }
+        if !waitFor(port: 9000, open: true, timeout: 5) {
+            showAlert("php-fpm is not listening on 9000", tail(supportDir + "/php-fpm.log"))
+        }
+    }
+
     static func start() {
         if !Cfg.fpmBin.isEmpty && !fpmRunning {
-            let p = makeProcess(Cfg.fpmBin, ["--nodaemonize", "--fpm-config", Cfg.fpmConf, "--pid", fpmPid],
+            let p = makeProcess(Cfg.fpmBin, fpmArgs(),
                                 log: supportDir + "/php-fpm.log")
             do { try p.run(); fpmChild = p; debug("php-fpm spawned pid \(p.processIdentifier)") }
             catch { showAlert("php-fpm failed to launch", "\(error)") }
@@ -288,6 +309,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(item("Open Localhost", #selector(openURLItem(_:)), object: Cfg.baseURL))
         menu.addItem(item("Open phpinfo()", #selector(openPhpInfo)))
+        let pe = item("Show PHP Errors in Browser", #selector(togglePHPErrors))
+        pe.state = phpErrorsOn ? .on : .off
+        menu.addItem(pe)
+        menu.addItem(item("Open PHP Error Log", #selector(openPHPErrorLog)))
         menu.addItem(.separator())
 
         let edit = NSMenuItem(title: "Edit Configs", action: nil, keyEquivalent: "")
@@ -342,6 +367,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             catch { showAlert("Couldn't create phpinfo.php", "\(file)\n\n\(error.localizedDescription)"); return }
         }
         NSWorkspace.shared.open(URL(string: "\(Cfg.baseURL)/phpinfo.php")!)
+    }
+
+    @objc private func togglePHPErrors() {
+        UserDefaults.standard.set(!phpErrorsOn, forKey: "showPHPErrors")
+        work.async {
+            guard Nginx.fpmRunning else { return }
+            if let p = Nginx.fpmChild, p.isRunning { p.terminate() } else { terminateListeners(9000) }
+            if !waitFor(port: 9000, open: false, timeout: 3) { terminateListeners(9000) }
+            Nginx.fpmChild = nil
+            Nginx.startFPM()
+        }
+    }
+
+    @objc private func openPHPErrorLog() {
+        if !FileManager.default.fileExists(atPath: phpErrorLog) {
+            FileManager.default.createFile(atPath: phpErrorLog, contents: nil)
+        }
+        let r = exec("/usr/bin/open", ["-t", phpErrorLog])
+        if !r.ok { showAlert("Couldn't open PHP error log", r.out) }
     }
 
     @objc private func revealSites() {
