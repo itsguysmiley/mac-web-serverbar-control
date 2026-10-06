@@ -25,6 +25,7 @@ enum Cfg {
 
     static let docRoot  = "/Users/geoff/Sites"
     static let baseURL  = "http://localhost"
+    static let phpMyAdminURL = "http://localhost/phpmyadmin/"
 
     static let env = ["PATH": "/opt/local/bin:/opt/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"]
 }
@@ -159,9 +160,12 @@ func terminateListeners(_ port: UInt16) {
 
 var phpErrorsOn: Bool { UserDefaults.standard.object(forKey: "showPHPErrors") as? Bool ?? true }
 let phpErrorLog = supportDir + "/php-errors.log"
+let phpSessionDir = supportDir + "/sessions"
 
 func fpmArgs() -> [String] {
     var a = ["--nodaemonize", "--fpm-config", Cfg.fpmConf, "--pid", Nginx.fpmPid]
+    try? FileManager.default.createDirectory(atPath: phpSessionDir, withIntermediateDirectories: true)
+    a += ["-d", "session.save_path=\(phpSessionDir)"]
     a += ["-d", "log_errors=On", "-d", "error_log=\(phpErrorLog)"]
     a += phpErrorsOn ? ["-d", "display_errors=On", "-d", "error_reporting=E_ALL"]
                      : ["-d", "display_errors=Off"]
@@ -314,6 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(item("Open Localhost", #selector(openURLItem(_:)), object: Cfg.baseURL))
         menu.addItem(item("Open phpinfo()", #selector(openPhpInfo)))
+        menu.addItem(item("Open phpMyAdmin", #selector(openURLItem(_:)), object: Cfg.phpMyAdminURL))
         let pe = item("Show PHP Errors in Browser", #selector(togglePHPErrors))
         pe.state = phpErrorsOn ? .on : .off
         menu.addItem(pe)
